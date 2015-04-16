@@ -19,30 +19,32 @@ import java.util.*;
 
 public class Main extends Application {
 
-    private long showImageFor = 7000;
-    private long imageAdvanceAfter = 20000;
-    private long folderAdvanceAfter = 50000;
+    private static String startFolder;
 
-    private int maxFolderIndex = 0;
-    private int minFolderIndex = 0;
+    private long showImageFor = 7000;
+    private int blockSize = 12;
+    private int imagesToShowPerBlock = 4;
 
     private int width = 1700;
     private int height = 2000;
 
-    private Map<Integer, Map<Integer, String>> allImages = new HashMap<>();
+    private int currentBlock = 0;
+    private int imagesShownForCurrentBlock = 0;
+    private int totalFiles = 0;
 
-    private Map<Integer, Double> maxImageFactors = new HashMap<>();
-    private Map<Integer, Double> minImageFactors = new HashMap<>();
+    private Map<Integer, List<ImageInfo>> imageBlocks = new HashMap<>();
+    private Set<String> filesDisplayed = new HashSet<>();
 
     private GraphicsContext gc;
     private Group board;
 
-    private static String startFolder;
 
     @Override
     public void start(Stage stage) throws Exception{
 
         loadImages(new File(startFolder));
+        System.out.println("Loaded " + totalFiles + " files.");
+        currentBlock = 0;
 
         final Pane pane = new Pane();
         board = new Group();
@@ -55,7 +57,7 @@ public class Main extends Application {
 
         Canvas canvas = new Canvas(width,height);
         gc = canvas.getGraphicsContext2D();
-        gc.fillRect(10,10,10,10);
+        gc.fillRect(10, 10, 10, 10);
 
         board.getChildren().add(canvas);
 
@@ -68,81 +70,11 @@ public class Main extends Application {
                 }, 0, showImageFor
         );
 
-        new Timer(true).schedule(
-                new TimerTask() {
-                    @Override public void run()
-                    {
-                        advanceImage();
-                    }
-                }, imageAdvanceAfter, imageAdvanceAfter
-        );
-
-        new Timer(true).schedule(
-                new TimerTask() {
-                    @Override public void run()
-                    {
-                        advanceFolder();
-                    }
-                }, folderAdvanceAfter, folderAdvanceAfter
-        );
-
         pane.setOnMouseClicked(event -> paused = !paused);
     }
 
     private boolean paused = false;
 
-    private void advanceFolder() {
-//        System.out.println("Folder++");
-        if ( !paused ) {
-            if (maxFolderIndex < allImages.keySet().size()) {
-                maxFolderIndex++;
-            } else {
-                if (minFolderIndex < allImages.keySet().size()) {
-                    minFolderIndex++;
-                } else {
-                    minFolderIndex = 0;
-                    maxFolderIndex = 0;
-                }
-            }
-        }
-    }
-
-    private void advanceImage() {
-        if ( !paused ) {
-            for (int i = 0; i <= maxFolderIndex; i++) {
-                if (i < minImageFactors.size()) {
-                    double min = minImageFactors.get(i);
-                    double max = maxImageFactors.get(i);
-                    int imageCount = allImages.get(i).size();
-                    if ( imageCount==0 ) {
-//                        advanceFolder();
-                    } else {
-                        if (max < 1.0) {
-                            maxImageFactors.put(i, max + 0.2);
-                        } else {
-                            if (min < 0.9) {
-                                minImageFactors.put(i, min + 0.2);
-                            } else {
-                                minImageFactors.put(i, 0.0);
-                                maxImageFactors.put(i, 0.2);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-//        System.out.println("Settings:");
-//        for ( int i=0; i<allImages.keySet().size(); i++ ) {
-//            Double min = minImageFactors.get(i);
-//            Double max = maxImageFactors.get(i);
-//            if ( min!=null && max!=null ) {
-//                int iMin = (int)Math.floor(min*10);
-//                int iMax = (int)Math.floor(max*10);
-//                System.out.println(i + ": " + iMin + "-" + iMax + (i == maxFolderIndex ? " *" : ""));
-//            }
-//        }
-//        System.out.println();
-    }
 
 
     private void putRandomImages(int count) {
@@ -154,6 +86,10 @@ public class Main extends Application {
             int retries = 0;
             List<BufferedImage> nowImages = new ArrayList<>();
             while (i < count) {
+
+                if ( imagesShownForCurrentBlock > imagesToShowPerBlock ) {
+                    currentBlock++;
+                }
                 String filename = getRandomImage();
 
                 if (filename != null) {
@@ -171,6 +107,7 @@ public class Main extends Application {
                                 nowImages.add(image);
                                 filesDisplayed.add(filename);
                                 System.out.println(filename);
+                                imagesShownForCurrentBlock++;
                                 left += image.getWidth();
                             }
                             i++;
@@ -197,43 +134,48 @@ public class Main extends Application {
 
     private String getRandomImage() {
 
-        String filename;
-
-        int source = minFolderIndex + (int)Math.floor((Math.random()*(1+maxFolderIndex-minFolderIndex)));
-
-        Map<Integer, String> files = allImages.get(source);
-
-        if ( files!=null && !files.isEmpty() ) {
-            int file = (int)Math.floor(( minImageFactors.get(source)+(Math.random()*(maxImageFactors.get(source)-minImageFactors.get(source)))) * files.size());
-            filename = files.get(file);
-            if (filename != null && !filesDisplayed.contains(filename)) {
-                return filename;
+        if ( currentBlock<imageBlocks.size() ) {
+            List<ImageInfo> infos = imageBlocks.get(currentBlock);
+            if ( infos!=null ) {
+                int index = (int)Math.floor(Math.random()*(infos.size()));
+                ImageInfo info = infos.get(index);
+                return info.filename;
+            } else {
+                currentBlock++;
             }
+
+        } else {
+            System.out.println("BACK TO THE BEGINNING");
+            currentBlock = 0;
         }
         return null;
     }
 
-
-
-    private Set<String> filesDisplayed = new HashSet<>();
-
-    int folderKey = 0;
     private void loadImages(File dir) {
         try {
             File[] files = dir.listFiles();
-            int myFileKey = 0;
-            int myFolderKey = -1;
-            for (File file : files) {
-                if (file.isDirectory() ) {
-                    loadImages(file);
-                } else {
-                    if ( myFolderKey == -1 ) {
-                        myFolderKey = folderKey++;
-                        allImages.put(myFolderKey, new HashMap<>());
-                        minImageFactors.put(myFolderKey, 0.0);
-                        maxImageFactors.put(myFolderKey, 0.2);
+            if ( files!=null ) {
+                Arrays.sort(files);
+                int fileCount = 0;
+                for (File file : files) {
+                    if (file.isDirectory() ) {
+                        currentBlock++;
+                        loadImages(file);
+                    } else {
+                        if ( fileCount < blockSize ) {
+                            List<ImageInfo> infos = imageBlocks.get(currentBlock);
+                            if ( infos==null ) {
+                                infos = new ArrayList<>();
+                                imageBlocks.put(currentBlock, infos);
+                            }
+                            infos.add(new ImageInfo(file.getCanonicalPath()));
+                            totalFiles++;
+                            fileCount++;
+                        } else {
+                            fileCount = 0;
+                            currentBlock++;
+                        }
                     }
-                    allImages.get(myFolderKey).put(myFileKey++, file.getCanonicalPath());
                 }
             }
         } catch (Exception e) {
@@ -242,10 +184,24 @@ public class Main extends Application {
     }
 
     public static void main(String[] args) {
-        System.out.println("--- SlideShow ---");
         if ( args.length>0 ) {
             startFolder = args[0];
+            System.out.println("Starting SlideShow: " + startFolder);
             launch(args);
+        }
+    }
+
+    private static class ImageInfo {
+        String filename;
+        int width = 0;
+        int height = 0;
+        public ImageInfo(String filename) {
+            this.filename = filename;
+        }
+        public ImageInfo(String filename, int width, int height) {
+            this.filename = filename;
+            this.width = width;
+            this.height = height;
         }
     }
 
