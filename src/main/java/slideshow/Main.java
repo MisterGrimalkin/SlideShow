@@ -24,6 +24,8 @@ public class Main extends Application {
 
     private static String startFolder;
 
+    private static boolean splitIntoBlocks = false;
+
     private long showImageFor = 8000;
     private int blockSize = 12;
     private int imagesToShowPerBlock = 4;
@@ -49,7 +51,7 @@ public class Main extends Application {
         height = (int)Math.floor(Screen.getPrimary().getVisualBounds().getHeight()) + 50;
 
         loadImages(new File(startFolder));
-        System.out.println("Loaded " + totalFiles + " files.");
+        System.out.println("Loaded " + totalFiles + " files, in " + (currentBlock+1) + " blocks.");
         currentBlock = 0;
 
         final Pane pane = new Pane();
@@ -77,8 +79,10 @@ public class Main extends Application {
         );
 
         pane.setOnMouseClicked(event -> {
-            paused = !paused;
-            System.out.println(paused?"Pause":"Resume");
+            if ( event.isControlDown() ) {
+                paused = !paused;
+                System.out.println(paused ? "Pause" : "Resume");
+            }
         });
     }
 
@@ -144,7 +148,7 @@ public class Main extends Application {
 
     private String getRandomImage() {
 
-        if ( currentBlock<imageBlocks.size() ) {
+        if ( !splitIntoBlocks || currentBlock<imageBlocks.size() ) {
             List<ImageInfo> infos = imageBlocks.get(currentBlock);
             if ( infos!=null && !infos.isEmpty() ) {
                 int index = (int)Math.floor(Math.random()*(infos.size()));
@@ -170,22 +174,32 @@ public class Main extends Application {
                 int fileCount = 0;
                 for (File file : files) {
                     if (file.isDirectory() ) {
-                        currentBlock++;
+                        if ( splitIntoBlocks ) { currentBlock++; }
                         loadImages(file);
                     } else {
-                        if ( fileCount < blockSize ) {
-                            List<ImageInfo> infos = imageBlocks.get(currentBlock);
-                            if ( infos==null ) {
-                                infos = new ArrayList<>();
-                                imageBlocks.put(currentBlock, infos);
+                        if ( file.getName().length()>=4 ) {
+                            String ext = file.getName().substring(file.getName().length() - 3);
+                            if (      ext.equalsIgnoreCase("jpg")
+                                    | ext.equalsIgnoreCase("peg")
+                                    | ext.equalsIgnoreCase("png")
+                                    | ext.equalsIgnoreCase("gif")
+                                    | ext.equalsIgnoreCase("bmp")
+                            ) {
+                                if (!splitIntoBlocks || fileCount < blockSize) {
+                                    List<ImageInfo> infos = imageBlocks.get(currentBlock);
+                                    if (infos == null) {
+                                        infos = new ArrayList<>();
+                                        imageBlocks.put(currentBlock, infos);
+                                    }
+                                    infos.add(new ImageInfo(file.getCanonicalPath()));
+//                                    System.out.println(file.getName());
+                                    totalFiles++;
+                                    fileCount++;
+                                } else {
+                                    fileCount = 0;
+                                    currentBlock++;
+                                }
                             }
-                            infos.add(new ImageInfo(file.getCanonicalPath()));
-                            System.out.println(currentBlock + ": " + file.getCanonicalFile());
-                            totalFiles++;
-                            fileCount++;
-                        } else {
-                            fileCount = 0;
-                            currentBlock++;
                         }
                     }
                 }
@@ -198,6 +212,9 @@ public class Main extends Application {
     public static void main(String[] args) {
         if ( args.length>0 ) {
             startFolder = args[0];
+            if ( args.length>1 ) {
+                splitIntoBlocks = "seq".equalsIgnoreCase(args[1]);
+            }
             System.out.println("Starting SlideShow: " + startFolder);
             launch(args);
         }
