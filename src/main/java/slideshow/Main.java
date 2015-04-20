@@ -2,12 +2,15 @@ package slideshow;
 
 import javafx.application.Application;
 import javafx.embed.swing.SwingFXUtils;
+import javafx.event.EventHandler;
 import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.Pane;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import org.imgscalr.Scalr;
 
@@ -21,7 +24,7 @@ public class Main extends Application {
 
     private static String startFolder;
 
-    private long showImageFor = 7000;
+    private long showImageFor = 8000;
     private int blockSize = 12;
     private int imagesToShowPerBlock = 4;
 
@@ -41,6 +44,9 @@ public class Main extends Application {
 
     @Override
     public void start(Stage stage) throws Exception{
+
+        width = (int)Math.floor(Screen.getPrimary().getVisualBounds().getWidth());
+        height = (int)Math.floor(Screen.getPrimary().getVisualBounds().getHeight()) + 50;
 
         loadImages(new File(startFolder));
         System.out.println("Loaded " + totalFiles + " files.");
@@ -70,7 +76,10 @@ public class Main extends Application {
                 }, 0, showImageFor
         );
 
-        pane.setOnMouseClicked(event -> paused = !paused);
+        pane.setOnMouseClicked(event -> {
+            paused = !paused;
+            System.out.println(paused?"Pause":"Resume");
+        });
     }
 
     private boolean paused = false;
@@ -89,10 +98,11 @@ public class Main extends Application {
 
                 if ( imagesShownForCurrentBlock > imagesToShowPerBlock ) {
                     currentBlock++;
+                    imagesShownForCurrentBlock = 0;
                 }
                 String filename = getRandomImage();
 
-                if (filename != null) {
+                if (filename != null && !filesDisplayed.contains(filename)) {
                     BufferedImage image = null;
                     try {
                         image = ImageIO.read(new File(filename));
@@ -136,17 +146,18 @@ public class Main extends Application {
 
         if ( currentBlock<imageBlocks.size() ) {
             List<ImageInfo> infos = imageBlocks.get(currentBlock);
-            if ( infos!=null ) {
+            if ( infos!=null && !infos.isEmpty() ) {
                 int index = (int)Math.floor(Math.random()*(infos.size()));
                 ImageInfo info = infos.get(index);
                 return info.filename;
             } else {
                 currentBlock++;
+                imagesShownForCurrentBlock = 0;
             }
 
         } else {
-            System.out.println("BACK TO THE BEGINNING");
             currentBlock = 0;
+            imagesShownForCurrentBlock = 0;
         }
         return null;
     }
@@ -169,6 +180,7 @@ public class Main extends Application {
                                 imageBlocks.put(currentBlock, infos);
                             }
                             infos.add(new ImageInfo(file.getCanonicalPath()));
+                            System.out.println(currentBlock + ": " + file.getCanonicalFile());
                             totalFiles++;
                             fileCount++;
                         } else {
