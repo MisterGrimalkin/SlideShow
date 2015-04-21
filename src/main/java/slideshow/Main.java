@@ -93,6 +93,10 @@ public class Main extends Application {
     private void putRandomImages(int count) {
         if ( !paused ) {
 
+            if ( count > totalFiles ) {
+                count = totalFiles;
+            }
+
             int left = 0;
             gc.fillRect(0, 0, width, height);
             int i = 0;
@@ -116,6 +120,9 @@ public class Main extends Application {
                     if (image != null) {
                         retries = 0;
                         image = Scalr.resize(image, Scalr.Mode.FIT_TO_HEIGHT, 1000 / count, 1000);
+                        if ( image.getWidth() > width ) {
+                            image = Scalr.resize(image, Scalr.Mode.FIT_TO_WIDTH, width);
+                        }
                         if (image != null) {
                             if (left + image.getWidth() <= width) {
                                 nowImages.add(image);
@@ -130,6 +137,9 @@ public class Main extends Application {
                 } else {
                     if (++retries > 200) {
                         filesDisplayed.clear();
+                        currentBlock++;
+                        imagesShownForCurrentBlock = 0;
+                        retries = 0;
                     }
                 }
             }
