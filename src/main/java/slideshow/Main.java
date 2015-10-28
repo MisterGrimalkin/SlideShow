@@ -29,7 +29,7 @@ public class Main extends Application {
             startFolder = args[0];
             if ( args.length>1 ) {
                 if ( "random".equalsIgnoreCase(args[1]) ) {
-                    // random not yet implemented
+                    randomMode = true;
                 } else {
                     try {
                         setSize = Integer.parseInt(args[1]);
@@ -43,7 +43,7 @@ public class Main extends Application {
             }
             System.out.println("=====================================================");
             System.out.println("  Slide Show\n    " + startFolder + "\n");
-            System.out.println("  Set Size: " + setSize);
+            System.out.println("  Set Size: " + (randomMode?"RANDOM":setSize) );
             System.out.println("  Delay: " + imageDuration + "ms");
             System.out.println("=====================================================");
             launch(args);
@@ -53,6 +53,7 @@ public class Main extends Application {
     private static String startFolder;
     private static long imageDuration = 8000;
     private static int setSize = 5;
+    private static boolean randomMode = false;
 
 
     ////////
@@ -136,7 +137,11 @@ public class Main extends Application {
 
     private void startSlideShow() {
         buildImageList(new File(startFolder));
-        thinImageList();
+        if ( randomMode ) {
+            randomiseImageList();
+        } else {
+            thinImageList();
+        }
         setIterator = allImageFilenames.keySet().iterator();
     }
 
@@ -146,7 +151,7 @@ public class Main extends Application {
                 if ( !setIterator.hasNext() ) {
                     startSlideShow();
                 }
-                imageIterator  = allImageFilenames.get(setIterator.next()).iterator();
+                imageIterator = allImageFilenames.get(setIterator.next()).iterator();
             }
             if ( imageIterator.hasNext() ) {
                 drawImage(imageIterator.next());
@@ -184,6 +189,16 @@ public class Main extends Application {
             }
 
         }
+    }
+
+    private void randomiseImageList() {
+        List<String> randomList = new LinkedList<>();
+        for (Map.Entry<String, List<String>> entry : allImageFilenames.entrySet() ) {
+            randomList.addAll(entry.getValue());
+        }
+        Collections.shuffle(randomList, new Random(System.currentTimeMillis()));
+        allImageFilenames.clear();
+        allImageFilenames.put("ALL", randomList);
     }
 
     private void thinImageList() {
