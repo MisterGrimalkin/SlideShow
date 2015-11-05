@@ -17,8 +17,11 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Main extends Application {
+
+    private final static String BAR = "=====================================================";
 
     /////////////////
     // Application //
@@ -30,6 +33,8 @@ public class Main extends Application {
             if ( args.length>1 ) {
                 if ( "random".equalsIgnoreCase(args[1]) ) {
                     randomMode = true;
+                } else if ( "all".equalsIgnoreCase(args[1]) ) {
+                    allMode = true;
                 } else {
                     try {
                         setSize = Integer.parseInt(args[1]);
@@ -41,11 +46,11 @@ public class Main extends Application {
                     } catch ( NumberFormatException ignored) {}
                 }
             }
-            System.out.println("=====================================================");
+            System.out.println(BAR);
             System.out.println("  Slide Show\n    " + startFolder + "\n");
-            System.out.println("  Set Size: " + (randomMode?"RANDOM":setSize) );
+            System.out.println("  Set Size: " + (randomMode?"RANDOM":allMode?"ALL":setSize) );
             System.out.println("  Delay: " + imageDuration + "ms");
-            System.out.println("=====================================================");
+            System.out.println(BAR);
             launch(args);
         }
     }
@@ -54,6 +59,7 @@ public class Main extends Application {
     private static long imageDuration = 8000;
     private static int setSize = 5;
     private static boolean randomMode = false;
+    private static boolean allMode = false;
 
 
     ////////
@@ -142,6 +148,11 @@ public class Main extends Application {
         } else {
             thinImageList();
         }
+        if ( allImageFilenames.isEmpty() ) {
+            System.out.println("  NO IMAGES FOUND");
+            System.out.println(BAR);
+            System.exit(1);
+        }
         setIterator = allImageFilenames.keySet().iterator();
     }
 
@@ -206,14 +217,18 @@ public class Main extends Application {
         for (Map.Entry<String, List<String>> entry : allImageFilenames.entrySet() ) {
             List<String> filenames = entry.getValue();
             List<String> thinned = new LinkedList<>();
-            int i = 0;
-            int limit = Math.min(filenames.size(), setSize);
-            while ( i < limit ) {
-                int r = (int)Math.floor(random.nextDouble() * filenames.size());
-                String f = filenames.get(r);
-                if ( !thinned.contains(f) ) {
-                    thinned.add(f);
-                    i++;
+            if ( allMode ) {
+                thinned.addAll(entry.getValue().stream().collect(Collectors.toList()));
+            } else {
+                int i = 0;
+                int limit = Math.min(filenames.size(), setSize);
+                while (i < limit) {
+                    int r = (int) Math.floor(random.nextDouble() * filenames.size());
+                    String f = filenames.get(r);
+                    if (!thinned.contains(f)) {
+                        thinned.add(f);
+                        i++;
+                    }
                 }
             }
             Collections.sort(thinned);
