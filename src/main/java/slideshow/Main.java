@@ -16,50 +16,102 @@ import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 public class Main extends Application {
 
     private final static String BAR = "=====================================================";
+
+    private static String startFolder;
+    private static long imageDuration = 8000;
+    private static double setSize = 0.03;
+    private static boolean randomMode = false;
+    private static boolean allMode = false;
+
+    private Map<String, List<String>> allImageFilenames = new LinkedHashMap<>();
+
+    private Iterator<String> setIterator = null;
+    private Iterator<String> imageIterator = null;
+
+    private boolean paused = false;
+
+    private GraphicsContext gc;
+
+    private int width = 1700;
+    private int height = 2000;
 
     /////////////////
     // Application //
     /////////////////
 
     public static void main(String[] args) {
+        boolean saveMode = true;
         if ( args.length>0 ) {
             startFolder = args[0];
             if ( args.length>1 ) {
+//                if ( "save".equalsIgnoreCase(args[1]) ) {
+//                    saveMode = true;
+//                }
                 if ( "random".equalsIgnoreCase(args[1]) ) {
                     randomMode = true;
                 } else if ( "all".equalsIgnoreCase(args[1]) ) {
                     allMode = true;
                 } else {
                     try {
-                        setSize = Integer.parseInt(args[1]);
+                        setSize = Double.parseDouble(args[1]);
                     } catch ( NumberFormatException ignored) {}
                 }
-                if ( args.length>2 ) {
-                    try {
-                        imageDuration = Integer.parseInt(args[2]) * 1000;
-                    } catch ( NumberFormatException ignored) {}
-                }
+//                if ( args.length>2 ) {
+//                    try {
+//                        imageDuration = Integer.parseInt(args[2]) * 1000;
+//                    } catch ( NumberFormatException ignored) {}
+//                }
             }
-            System.out.println(BAR);
-            System.out.println("  Slide Show\n    " + startFolder + "\n");
-            System.out.println("  Set Size: " + (randomMode?"RANDOM":allMode?"ALL":setSize) );
-            System.out.println("  Delay: " + imageDuration + "ms");
-            System.out.println(BAR);
-            launch(args);
+            if ( saveMode ) {
+                new Main().saveFiles();
+                System.exit(0);
+            } else {
+                System.out.println(BAR);
+                System.out.println("  Slide Show\n    " + startFolder + "\n");
+                System.out.println("  Set Size: " + (randomMode ? "RANDOM" : allMode ? "ALL" : setSize));
+                System.out.println("  Delay: " + imageDuration + "ms");
+                System.out.println(BAR);
+                launch(args);
+            }
         }
     }
 
-    private static String startFolder;
-    private static long imageDuration = 8000;
-    private static int setSize = 5;
-    private static boolean randomMode = false;
-    private static boolean allMode = false;
+    public void saveFiles() {
+
+        startSlideShow();
+
+        String outPath = startFolder+"/slideshow-"+ LocalDateTime.now();
+
+        if ( new File(outPath).mkdir() ) {
+            processFileList((fullFilename) -> {
+                String[] parts = fullFilename.split("/");
+                String parentFolder = parts[parts.length - 2];
+                String filename = parts[parts.length - 1];
+                System.out.println(filename);
+                Path from = Paths.get(fullFilename);
+                Path to = Paths.get(outPath + "/" + parentFolder+"-"+filename);
+                try {
+                    Files.copy(from, to, REPLACE_EXISTING);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+
+    }
 
 
     ////////
@@ -77,7 +129,7 @@ public class Main extends Application {
                 new TimerTask() {
                     @Override
                     public void run() {
-                        nextImage();
+                        nextImage(Main.this::drawImage);
                     }
                 }, 0, imageDuration
         );
@@ -131,10 +183,6 @@ public class Main extends Application {
 
     }
 
-    private GraphicsContext gc;
-
-    private int width = 1700;
-    private int height = 2000;
 
 
     ////////////////
@@ -156,7 +204,11 @@ public class Main extends Application {
         setIterator = allImageFilenames.keySet().iterator();
     }
 
-    private void nextImage() {
+    public interface ImageCallback {
+        void call(String filename);
+    }
+
+    private void nextImage(ImageCallback callback) {
         if ( !paused ) {
             if ( imageIterator==null ) {
                 if ( !setIterator.hasNext() ) {
@@ -165,10 +217,10 @@ public class Main extends Application {
                 imageIterator = allImageFilenames.get(setIterator.next()).iterator();
             }
             if ( imageIterator.hasNext() ) {
-                drawImage(imageIterator.next());
+                callback.call(imageIterator.next());
             } else {
                 imageIterator = null;
-                nextImage();
+                nextImage(callback);
             }
         }
     }
@@ -221,7 +273,8 @@ public class Main extends Application {
                 thinned.addAll(entry.getValue().stream().collect(Collectors.toList()));
             } else {
                 int i = 0;
-                int limit = Math.min(filenames.size(), setSize);
+                int filesInSet = (int)Math.round(setSize * filenames.size());
+                int limit = Math.min(filenames.size(), Math.max(1, filesInSet));
                 while (i < limit) {
                     int r = (int) Math.floor(random.nextDouble() * filenames.size());
                     String f = filenames.get(r);
@@ -248,20 +301,10 @@ public class Main extends Application {
         return false;
     }
 
-    private void printFileList() {
+    private void processFileList(ImageCallback callback) {
         for (Map.Entry<String, List<String>> entry : allImageFilenames.entrySet() ) {
-            System.out.println(entry.getKey());
-            for ( String s : entry.getValue() ) {
-                System.out.println("\t" + s);
-            }
+            entry.getValue().forEach(callback::call);
         }
     }
-
-    private Map<String, List<String>> allImageFilenames = new LinkedHashMap<>();
-
-    private Iterator<String> setIterator = null;
-    private Iterator<String> imageIterator = null;
-
-    private boolean paused = false;
 
 }
